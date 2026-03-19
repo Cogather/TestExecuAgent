@@ -1,0 +1,24 @@
+python:
+  path: null
+  resolved_at: null
+  source: null
+  valid: false
+
+dependencies:
+  playwright:
+    installed: null
+    version: null
+    checked_at: null
+  other:
+    installed: null
+    notes: null
+
+environment:
+  lock_source: null
+  lock_checked_at: null
+
+workspace:
+  case_root_created: false
+  case_root_path: null
+  last_case_id: null
+  updated_at: null
