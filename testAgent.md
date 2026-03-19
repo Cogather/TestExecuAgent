@@ -143,6 +143,7 @@ bootstrap 需要完成的事情：
 - **`record-step-recorder` 阶段产出的步骤对应的 Python 脚本**
 - **MCP 验证结果**
 - **执行日志、截图、trace 或页面快照**
+- **必要时由 `scripts/fetch_case_steps.py` 补齐的步骤上下文**
 
 ### 进入 `fix-playwright-output-manager`
 只有当脚本已修复完成时，才能进入脚本执行与输出管理阶段。这个阶段默认已经具备根目录，不再自行创建用例根目录。

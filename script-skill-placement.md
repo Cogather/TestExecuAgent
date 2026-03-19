@@ -26,6 +26,7 @@
 
 | 脚本文件 | 应归属的 skill | 说明 |
 | --- | --- | --- |
+| `scripts/fetch_case_steps.py` | `fix-playwright-repairer` | 用于拉取或刷新当前用例的步骤上下文，服务于脚本修复诊断。 |
 | `.opencode/skills/fix-playwright-scripts/scripts/env_manager.py` | `fix-playwright-ops` | 用于环境占用与释放，属于 fix 阶段前后的运行时操作。 |
 | `scripts/step_output_manager.py` | `fix-playwright-output-manager` | 用于收集步骤输出、日志和报告，属于脚本修复后的执行管理。 |
 | `scripts/store_steps.py` | `fix-playwright-ops` | 用于修复完成后的脚本结果上报。 |
@@ -51,7 +52,7 @@
 | --- | --- |
 | `record-case-generator` | 用例拆解、预期结果扩写、预期结果入库相关脚本 |
 | `record-step-recorder` | 相似步骤检索、步骤录制、脚本落盘相关脚本 |
-| `fix-playwright-repairer` | 脚本修复、MCP 验证、断言补充、静态优化相关脚本 |
+| `fix-playwright-repairer` | 步骤上下文补齐、脚本修复、MCP 验证、断言补充、静态优化相关脚本 |
 | `fix-playwright-output-manager` | 脚本执行、输出收集、报告生成相关脚本 |
 | `fix-playwright-ops` | 环境锁定/释放、修复结果上报相关脚本 |
 | `fix-playwright-scripts` | 仅作为历史兼容入口，不承载新脚本归属 |
