@@ -1,0 +1,4 @@
+interface:
+  display_name: "Fix Scripts"
+  short_description: "Repair with wrapper logs and checkpoints"
+  default_prompt: "Use $fix-scripts to repair step scripts via wrapper execution logs and checkpoint screenshots/HTML."

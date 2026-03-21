@@ -1,0 +1,4 @@
+interface:
+  display_name: "Environment Preparation"
+  short_description: "Create workspace, fetch scripts, and lock env"
+  default_prompt: "Use $env-preparation to create workspace, download reusable scripts, and occupy the target environment."

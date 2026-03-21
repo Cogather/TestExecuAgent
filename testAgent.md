@@ -24,6 +24,7 @@ model: glm-4.7
 - **预制条件**：用例执行前的前置条件
 - **测试步骤**：测试用例的步骤列表
 - **预期结果**：每个步骤的预期结果
+- **步骤复用标识**：与测试步骤一一对应的复用开关，标识每个步骤是否需要复用已有产物（建议使用 `true/false`）
 - **环境信息**：环境配置信息，影响测试执行的环境变量
 
 ## Bootstrap
@@ -40,7 +41,7 @@ bootstrap 需要完成的事情：
    - 检查关键依赖是否已安装
    - 检查环境是否可用
 4. 将探测结果写回 `agent-memory.yaml`，并把 `valid` 更新为 `true`，作为后续多次使用的长期记忆。
-5. 确认用例名称、用例编码 `case_id`、起始 URL、预制条件、测试步骤、预期结果和环境信息齐备。
+5. 确认用例名称、用例编码 `case_id`、起始 URL、预制条件、测试步骤、预期结果、步骤复用标识和环境信息齐备。
 6. 在当前工作目录下创建 `[case_id]` 根目录，作为本用例统一输出目录。
 7. 如果输入中包含 `platform_env_id`，则将其保留为后续 `fix-playwright-ops` 的环境锁定上下文，不写入 `agent-memory.yaml`。
 8. 将 bootstrap 结果作为后续 skill 的公共上下文，后续 skill 不再重复做解释器发现和根目录创建；如存在 `platform_env_id`，则由 `fix-playwright-ops` 在 fix 阶段前后各执行一次，分别完成环境锁定、修复结果登记与环境释放。
@@ -128,6 +129,8 @@ bootstrap 需要完成的事情：
 
 ### 进入 `record-step-recorder`
 只有当已经拿到确认过的 `[case_id]_AI_create.txt` 时，才能进入脚本录制阶段。这个阶段默认已经具备 Python 解释器路径和根目录，不再自行发现或创建。
+
+`record-step-recorder` 在生成步骤脚本时，需要同时接收并遵循“步骤复用标识”，按步骤决定复用已有产物或重新生成。
 
 ### 进入 `fix-playwright-ops`
 当流程进入 fix 阶段前，需要先调用一次 `fix-playwright-ops` 完成环境锁定；当 `fix-playwright-output-manager` 完成后，再调用一次 `fix-playwright-ops` 完成修复结果登记与环境释放。

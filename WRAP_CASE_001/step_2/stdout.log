@@ -1,0 +1,2 @@
+PLAYWRIGHT_READY=1
+ENGINES=chromium,firefox,webkit

@@ -1,0 +1,4 @@
+PLAYWRIGHT_READY=1
+TITLE=Example Domain
+SCREENSHOT=/Users/sdy/Documents/repos/testAgent/WRAP_CASE_003/step_1/reports/checkpoints/example-home.png
+HTML=/Users/sdy/Documents/repos/testAgent/WRAP_CASE_003/step_1/reports/checkpoints/example-home.html

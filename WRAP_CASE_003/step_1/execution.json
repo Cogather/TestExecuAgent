@@ -1,0 +1,18 @@
+{
+  "case_id": "WRAP_CASE_003",
+  "step": "1",
+  "script": "/Users/sdy/Documents/repos/testAgent/wrapper_playwright_step1.py",
+  "command": [
+    "python3",
+    "/Users/sdy/Documents/repos/testAgent/wrapper_playwright_step1.py"
+  ],
+  "exit_code": 0,
+  "timed_out": false,
+  "error_message": "",
+  "start_time": "2026-03-21T08:59:11.306615+00:00",
+  "end_time": "2026-03-21T08:59:13.424184+00:00",
+  "duration_seconds": 2.118,
+  "stdout_path": "/Users/sdy/Documents/repos/testAgent/WRAP_CASE_003/step_1/stdout.log",
+  "stderr_path": "/Users/sdy/Documents/repos/testAgent/WRAP_CASE_003/step_1/stderr.log",
+  "execution_path": "/Users/sdy/Documents/repos/testAgent/WRAP_CASE_003/step_1/execution.json"
+}

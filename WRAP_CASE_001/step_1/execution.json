@@ -1,0 +1,18 @@
+{
+  "case_id": "WRAP_CASE_001",
+  "step": "1",
+  "script": "/private/tmp/playwright_step_test.py",
+  "command": [
+    "python3",
+    "/private/tmp/playwright_step_test.py"
+  ],
+  "exit_code": 1,
+  "timed_out": false,
+  "error_message": "",
+  "start_time": "2026-03-21T08:51:42.880635+00:00",
+  "end_time": "2026-03-21T08:51:42.911075+00:00",
+  "duration_seconds": 0.03,
+  "stdout_path": "/Users/sdy/Documents/repos/testAgent/WRAP_CASE_001/step_1/stdout.log",
+  "stderr_path": "/Users/sdy/Documents/repos/testAgent/WRAP_CASE_001/step_1/stderr.log",
+  "execution_path": "/Users/sdy/Documents/repos/testAgent/WRAP_CASE_001/step_1/execution.json"
+}
