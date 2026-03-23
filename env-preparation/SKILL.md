@@ -61,8 +61,7 @@ python .opencode/skills/fix-playwright-scripts/scripts/env_manager.py \
     --action lock \
     --platform_env_id <platform_env_id> \
     --user <operator> \
-    --lock_reason "<lock_reason>" \
-    --expect_unlock_time "<expect_unlock_time>"
+    --lock_reason "<lock_reason>"
 ```
 
 参数说明：
@@ -70,7 +69,6 @@ python .opencode/skills/fix-playwright-scripts/scripts/env_manager.py \
 - `--platform_env_id`：平台环境 ID，来自本次调用输入。
 - `--user`：当前操作者标识。
 - `--lock_reason`：锁定原因。
-- `--expect_unlock_time`：预计释放时间。
 
 锁定成功后，只保留运行时上下文，不把 `platform_env_id` 或 `locked` 写入 `agent-memory.yaml`。  
 若锁定失败，记录失败状态和错误信息，由上层编排决定是否继续。

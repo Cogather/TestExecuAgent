@@ -44,26 +44,29 @@ python fix-scripts/scripts/run_step_with_capture.py \
 
 在进入修复循环前，先对步骤脚本做一次关键节点留证注入。此步骤是前置步骤，不放在循环内。
 
-在以下节点写入截图与 HTML 保存代码：
+每个步骤的留证点必须固定，且**最多 3 个**，不要超出：
 
-- 页面初次加载后
-- 登录提交前后
-- 关键点击前后
-- 页面跳转完成后
-- 最终断言前
-- `except` 异常分支中
+1. `cp1_after_page_ready`：页面初次加载完成后（必选）
+2. `cp2_after_key_action`：该步骤最关键业务动作完成后（必选）
+3. `cp3_on_error`：`except` 异常分支中（可选，仅异常时触发）
+
+约束：
+
+- 不允许再注入第 4 个留证点。
+- 一个步骤里存在多个点击/输入时，只保留“最关键动作”作为 `cp2`。
+- 循环修复阶段只改业务逻辑，不新增留证点。
 
 推荐写法：
 
 ```python
-checkpoint_dir = "./<case_id>/step_<N>"
+checkpoint_dir = "./<case_id>/step_<N>/reports/checkpoints"
 os.makedirs(checkpoint_dir, exist_ok=True)
-page.screenshot(path=f"{checkpoint_dir}/after-login-submit.png", full_page=True)
-with open(f"{checkpoint_dir}/after-login-submit.html", "w", encoding="utf-8") as f:
+page.screenshot(path=f"{checkpoint_dir}/cp2_after_key_action.png", full_page=True)
+with open(f"{checkpoint_dir}/cp2_after_key_action.html", "w", encoding="utf-8") as f:
     f.write(page.content())
 ```
 
-### 3. 循环修复（最多 3 轮）
+### 3. 循环修复（每轮验证，失败触发用户交互）
 
 循环内只修复脚本逻辑问题，不再新增或重构留证注入点。每轮固定顺序：
 
@@ -77,14 +80,16 @@ with open(f"{checkpoint_dir}/after-login-submit.html", "w", encoding="utf-8") as
 
 1. 使用 `run_step_with_capture.py` 执行步骤脚本。
 2. 读取 `stdout.log`、`stderr.log`、`execution.json`。
-3. 检查 `./<case_id>/step_<N>/reports/checkpoints` 下是否已有留证文件（至少一张 `.png`，建议同时存在 `.html`）。
+3. 检查 `./<case_id>/step_<N>/reports/checkpoints`：
+   - 至少存在 `cp1` 与 `cp2` 的 `.png` 留证（异常时允许出现 `cp3`）。
+   - `.png` 留证总数不得超过 3，`.html` 留证总数不得超过 3。
 
 #### 3.3 判定本轮结果
 
 本轮通过条件：
 
 - 包装执行退出码为 `0`
-- 存在关键节点截图文件
+- 留证点符合“每步最多 3 个”约束，且包含 `cp1`、`cp2`
 - 脚本逻辑断言通过
 
 若通过则结束修复；若不通过，进入 3.4。
@@ -98,14 +103,37 @@ with open(f"{checkpoint_dir}/after-login-submit.html", "w", encoding="utf-8") as
 - 弹窗/下载/跳转处理缺失
 - 断言不合理或缺失
 
-连续 3 轮仍失败时，停止并输出失败原因与建议人工介入点。
+#### 3.5 三轮失败后的交互升级（不可跳过当前步骤）
+
+若连续 3 轮仍失败，不允许跳过当前步骤，必须先与用户交互补充现场信息，再继续修复当前步骤。
+
+交互要求（至少覆盖以下问题）：
+
+1. 当前页面实际停留在哪个 URL 或页面标题？
+2. 界面上最后一个成功动作是什么？
+3. 卡住时看到的元素/弹窗/报错文本是什么？
+4. 预期下一步应出现什么，但实际没有出现什么？
+
+拿到用户反馈后：
+
+- 更新当前步骤脚本并再次执行包装脚本验证。
+- 继续“验证 -> 修复 -> 验证”循环，直到当前步骤可用。
+- 若仍无法恢复，明确输出阻塞原因并等待用户进一步信息；**不得标记当前步骤为跳过**。
 
 ### 4. 修复完成标准
 
 - MCP 关键动作验证通过
 - 包装执行退出码为 `0`
 - 关键断言通过
-- 关键节点留证文件存在且可读（位于 `./<case_id>/step_<N>/reports/checkpoints`）
+- 留证文件存在且可读（位于 `./<case_id>/step_<N>/reports/checkpoints`）
+- 每步留证点不超过 3 个（`cp1`、`cp2`、`cp3`）
+- 当前步骤已验证可用后，才能进入下一步骤
+
+## 约束
+
+- 不允许因修复轮次达到上限而跳过当前步骤。
+- 不允许在当前步骤未验证可用时推进到下一步骤。
+- 三轮失败后必须先向用户询问“卡在哪里、界面出现了什么问题”，再继续修复。
 
 ## 脚本资源
 
