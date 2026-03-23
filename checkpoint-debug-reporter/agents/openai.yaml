@@ -1,0 +1,4 @@
+interface:
+  display_name: "Checkpoint Debug Reporter"
+  short_description: "Guide-only checkpoint validation and report writing"
+  default_prompt: "Use $checkpoint-debug-reporter to inspect step outputs, validate checkpoint evidence, and write a PASS/WARN/FAIL test report without adding scripts."

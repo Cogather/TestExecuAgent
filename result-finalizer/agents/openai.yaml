@@ -1,0 +1,4 @@
+interface:
+  display_name: "Result Finalizer"
+  short_description: "Report result, ingest corpus, release env, cleanup"
+  default_prompt: "Use $result-finalizer to finish a test case with result reporting, corpus ingestion, environment release, and workspace cleanup."
