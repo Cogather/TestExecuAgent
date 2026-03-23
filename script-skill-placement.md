@@ -44,8 +44,8 @@
 
 | 脚本文件 | 应归属的 skill | 说明 |
 | --- | --- | --- |
-| `playwright-script-generalizer/scripts/extract_playwright_params.py` | `playwright-script-generalizer` | 将 Playwright 脚本提取为模板与默认参数。 |
-| `playwright-script-generalizer/scripts/restore_playwright_script.py` | `playwright-script-generalizer` | 将模板和参数还原为可执行脚本。 |
+| `result-finalizer/scripts/extract_playwright_params.py` | `result-finalizer` | 将 Playwright 脚本提取为模板与默认参数。 |
+| `result-finalizer/scripts/restore_playwright_script.py` | `result-finalizer` | 将模板和参数还原为可执行脚本。 |
 
 ## 六、当前建议的 skill 边界
 

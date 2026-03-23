@@ -1,12 +1,12 @@
 ---
 name: result-finalizer
-description: 在测试执行或结果判定完成后，按固定收尾顺序完成结果上报、语料入库、环境释放、上传归档和工作目录清理。用于已拿到用例级结论（success/fail/interrupt）且需要标准化落库、归档与回收资源的场景，尤其适用于存在 `case_id`、`platform_env_id`、结果目录 `./<case_id>` 的自动化执行链路。
+description: 在测试执行或结果判定完成后，按固定收尾顺序完成结果上报、脚本参数泛化、语料入库、环境释放、上传归档和工作目录清理。用于已拿到用例级结论（success/fail/interrupt）且需要标准化落库、归档与回收资源的场景，尤其适用于存在 `case_id`、`platform_env_id`、结果目录 `./<case_id>` 的自动化执行链路。
 ---
 
 # Result Finalizer
 
 这个 skill 只负责收尾，不负责录制、修复或再次执行步骤脚本。  
-必须按固定顺序处理五件事：`结果上报 -> 语料入库 -> 环境释放 -> 上传归档 -> 工作目录清理`。
+必须按固定顺序处理六件事：`结果上报 -> 脚本参数泛化 -> 语料入库 -> 环境释放 -> 上传归档 -> 工作目录清理`。
 
 ## Use When
 
@@ -33,6 +33,7 @@ description: 在测试执行或结果判定完成后，按固定收尾顺序完�
 - `case_uri`：用于 CIDA 结果上报
 - `status_desc`：结束态描述；不传时自动生成摘要
 - `steps_for_store`：用于脚本上报的步骤集合（每步含 `step_order`、`step_description`、`checkpoint`、`tool_name`）
+- `generalize_output_dir`：泛化输出目录，默认 `./<case_id>/generalized`
 - `cleanup_mode`：`safe`（默认）/ `aggressive`
 - `cleanup_keep`：清理时保留目录白名单，默认保留 `reports/`、`artifacts/`
 
@@ -41,17 +42,18 @@ description: 在测试执行或结果判定完成后，按固定收尾顺序完�
 严格按以下顺序执行，不得跳步：
 
 1. 结果上报（END）
-2. 语料入库（脚本上报）
-3. 环境释放（unlock）
-4. 上传归档
-5. 工作目录清理
+2. 脚本参数泛化（Phase 1）
+3. 语料入库（脚本上报）
+4. 环境释放（unlock）
+5. 上传归档
+6. 工作目录清理
 
 ### Step 1: 结果上报（核心里程碑）
 
-先上报用例结束状态。可复用 `web-test-validator` 的上报命令模式：
+先上报用例结束状态。
 
 ```bash
-python3 web-test-validator-result/scripts/post_case_status.py \
+python .skills/result-finalizer/scripts/post_case_status.py \
   --case-id "CASE_ID" \
   --op-type "END" \
   --result "RESULT" \
@@ -61,7 +63,7 @@ python3 web-test-validator-result/scripts/post_case_status.py \
 如存在 `case_uri`，再上报 CIDA 结果：
 
 ```bash
-python3 web-test-validator-result/scripts/post_cida_result.py \
+python .skills/result-finalizer/scripts/post_cida_result.py \
   --case-uri "CASE_URI" \
   --result "RESULT_CODE"
 ```
@@ -71,7 +73,27 @@ python3 web-test-validator-result/scripts/post_cida_result.py \
 - 上报失败要重试（建议最多 3 次，指数退避）。
 - 多次失败后记录为 `report_failed`，但流程继续到后续步骤。
 
-### Step 2: 语料入库（使用 `store_steps.py` 上报）
+### Step 2: 脚本参数泛化（
+
+在语料入库前，先对每个修复后的步骤脚本执行参数泛化。  
+统一使用 `playwright-script-generalizer` 的阶段一提取脚本，不自行实现泛化逻辑。
+
+命令模板：
+
+```bash
+python .skills/result-finalizer/scripts/extract_playwright_params.py \
+  -i "./<case_id>/<case_id>_step<N>.py" \
+  -o "./<case_id>/generalized/<case_id>_step<N>.template.py" \
+  -p "./<case_id>/generalized/<case_id>_step<N>.default_params.json"
+```
+
+执行要求：
+
+- 每个待入库步骤都必须先完成一次参数泛化。
+- 泛化失败的步骤不得进入语料入库，需记录失败原因并在最终报告中标注。
+- 记录泛化结果：`generalize_status = success|failed|partial`。
+
+### Step 3: 语料入库（使用 `store_steps.py` 上报）
 
 语料入库统一采用“脚本上报”方式，不自定义新入库脚本。  
 当用户确认脚本修复无误后，对每个步骤执行一次上报。
@@ -97,17 +119,17 @@ python store_steps.py \
 
 执行要求：
 
-- `tool_name` 只传纯文件名，不传绝对路径。
+- `tool_name` 只传纯文件名，不传绝对路径；优先传泛化后模板脚本文件名（例如 `CASE_001_step1.template.py`）。
 - 每个待入库步骤都要单独执行一次上报命令。
 - 上报失败要记录失败步骤并继续后续步骤，最终汇总 `corpus_ingest_status = success|failed|partial`。
 - 不要自己编写 `store_steps.py`，只使用项目已提供脚本。
 
-### Step 3: 环境释放
+### Step 4: 环境释放
 
 不论前两步成功与否，都必须执行释放。可复用命令模式：
 
 ```bash
-python3 web-test-validator-result/scripts/env_manager.py \
+python ./skills/result-finalizer/scripts/env_manager.py \
   --action unlock \
   --platform_env_id "PLATFORM_ENV_ID"
 ```
@@ -117,7 +139,7 @@ python3 web-test-validator-result/scripts/env_manager.py \
 - 此步骤属于 `finally` 语义，不得省略。
 - 释放失败必须显式上报 `env_release_failed`，并给人工介入建议。
 
-### Step 4: 上传归档
+### Step 5: 上传归档
 
 在报告与步骤产物都已落盘后，调用上传脚本，并将整个 `./<case_id>` 上传到文件服务器。
 
@@ -134,7 +156,7 @@ python upload.py ./<case_id>
 - 上传失败后记录 `upload_status = failed` 与错误信息。
 - 上传失败时默认不要执行激进清理，避免证据丢失。
 
-### Step 5: 工作目录清理
+### Step 6: 工作目录清理
 
 在环境释放后执行清理，避免误删关键证据。
 
@@ -154,10 +176,11 @@ python upload.py ./<case_id>
 失败补偿顺序固定：
 
 1. 结果上报失败：记录并重试，超限后标记失败继续。
-2. 语料入库失败：记录并继续；失败步骤需在最终报告中逐条列出。
-3. 环境释放失败：记录并告警，继续后续步骤（若后续动作依赖环境可跳过并说明）。
-4. 上传归档失败：记录并告警；默认降级为 `safe` 清理或保留目录等待人工处理。
-5. 工作目录清理失败：记录残留路径与处理建议。
+2. 参数泛化失败：记录并继续，失败步骤跳过入库并在最终报告中逐条列出。
+3. 语料入库失败：记录并继续；失败步骤需在最终报告中逐条列出。
+4. 环境释放失败：记录并告警，继续后续步骤（若后续动作依赖环境可跳过并说明）。
+5. 上传归档失败：记录并告警；默认降级为 `safe` 清理或保留目录等待人工处理。
+6. 工作目录清理失败：记录残留路径与处理建议。
 
 ## Output
 
@@ -169,6 +192,7 @@ python upload.py ./<case_id>
 - `case_id`
 - `case_result`
 - `report_status`
+- `generalize_status`
 - `corpus_ingest_status`
 - `env_release_status`
 - `upload_status`
@@ -181,6 +205,7 @@ python upload.py ./<case_id>
 - 不要重跑步骤脚本，不要修改步骤代码。
 - 不要在环境未释放前做激进清理。
 - 不要因为上游失败跳过环境释放。
+- 不要跳过参数泛化直接入库原始硬编码脚本。
 - 不要在上传归档前删除关键产物目录。
 - 产物未归档时，不要删除 `reports/` 等关键证据目录。
 - 不要自己写或改造 `store_steps.py`，只按现有脚本能力执行上报。

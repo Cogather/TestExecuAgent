@@ -62,7 +62,7 @@ bootstrap 需要完成的事情：
    基于 `fix-scripts` 产物进行检查点核验并输出诊断报告。
 
 5. **`result-finalizer`**  
-   执行结果上报、语料入库、环境释放、上传归档与工作目录清理。
+   执行结果上报、脚本参数泛化、语料入库、环境释放、上传归档与工作目录清理。
 
 ## 不可跳过约束
 
@@ -137,7 +137,7 @@ bootstrap 需要完成的事情：
 
 ### 进入 `result-finalizer`
 只有当 `checkpoint-debug-reporter` 已给出诊断结果后，才能进入 `result-finalizer`。
-`result-finalizer` 内必须依次完成：结果上报、语料入库、环境释放、上传归档、工作目录清理。
+`result-finalizer` 内必须依次完成：结果上报、脚本参数泛化、语料入库、环境释放、上传归档、工作目录清理。
 
 ## 结束条件
 
