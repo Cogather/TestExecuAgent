@@ -73,18 +73,19 @@ python .skills/result-finalizer/scripts/post_cida_result.py \
 - 上报失败要重试（建议最多 3 次，指数退避）。
 - 多次失败后记录为 `report_failed`，但流程继续到后续步骤。
 
-### Step 2: 脚本参数泛化（
+### Step 2: 脚本参数泛化（提取参数）
 
 在语料入库前，先对每个修复后的步骤脚本执行参数泛化。  
 统一使用 `playwright-script-generalizer` 的阶段一提取脚本，不自行实现泛化逻辑。
 
-命令模板：
+命令模板（推荐使用独立输出目录）：
 
 ```bash
-python .skills/result-finalizer/scripts/extract_playwright_params.py \
+python result-finalizer/scripts/extract_playwright_params.py \
   -i "./<case_id>/<case_id>_step<N>.py" \
-  -o "./<case_id>/generalized/<case_id>_step<N>.template.py" \
-  -p "./<case_id>/generalized/<case_id>_step<N>.default_params.json"
+  -d "./<case_id>/generalized/step_<N>" \
+  -o "<case_id>_step<N>.template.py" \
+  -p "<case_id>_step<N>.default_params.json"
 ```
 
 执行要求：
@@ -92,6 +93,12 @@ python .skills/result-finalizer/scripts/extract_playwright_params.py \
 - 每个待入库步骤都必须先完成一次参数泛化。
 - 泛化失败的步骤不得进入语料入库，需记录失败原因并在最终报告中标注。
 - 记录泛化结果：`generalize_status = success|failed|partial`。
+- `-d/--out-dir` 不存在时自动创建；在 `-d` 模式下，`-o/-p` 只写文件名。
+- `-d` 模式会保持目录“本次双文件”整洁：除本次 `-o/-p` 目标外，其他同级文件会在写入前迁移到 `out.bak/` 的同相对路径下（子目录不处理）。
+- 若目标同名文件已存在，会先复制备份到 `out.bak/.../<原名>.bak.<时间戳>.<ext>`，再写入新文件。
+- 参数 JSON 使用元数据结构：`{key: {value, sensitive, kind}}`。
+- 元数据规则：URL 永不自动标敏感；邮箱/账号/用户名默认不自动标敏感；仅键名命中密码/令牌/密钥/凭证等安全提示词时自动 `sensitive: true`。
+- 模板脚本通过 `_params_flat_from_json` 读取每个键的 `value` 字段。
 
 ### Step 3: 语料入库（使用 `store_steps.py` 上报）
 
