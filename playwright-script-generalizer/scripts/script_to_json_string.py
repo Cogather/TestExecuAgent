@@ -22,6 +22,17 @@ import json
 import sys
 
 
+def text_to_json_string_literal(text: str) -> str:
+    """整段文本转为合法 JSON 字符串字面量（带外层双引号，供嵌入 JSON 请求体）。"""
+    return json.dumps(text, ensure_ascii=False)
+
+
+def file_to_json_string_literal(path: str) -> str:
+    """读取 UTF-8 文件全文，再转为 JSON 字符串字面量。"""
+    with open(path, "r", encoding="utf-8") as f:
+        return text_to_json_string_literal(f.read())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="将 .py 文件内容转为 JSON 字符串字面量（供嵌入 JSON 体）"
@@ -41,8 +52,7 @@ def main() -> None:
         print(f"读取失败: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # ensure_ascii=False：中文等不转成 \\uXXXX，与 UTF-8 API 一致
-    out = json.dumps(content, ensure_ascii=False)
+    out = text_to_json_string_literal(content)
 
     if args.output:
         with open(args.output, "w", encoding="utf-8") as f:
