@@ -211,12 +211,15 @@ def extract_and_convert(input_file: str, output_file: str, params_file: str) -> 
     ordered_keys: List[str] = []
     key_set: Set[str] = set()
     key_values: Dict[str, str] = {}
+    key_chains: Dict[str, str] = {}
 
-    def add_key(k: str, raw_value: str) -> None:
+    def add_key(k: str, raw_value: str, chain: Optional[str] = None) -> None:
         if k not in key_set:
             key_set.add(k)
             ordered_keys.append(k)
             key_values[k] = raw_value
+            if chain is not None:
+                key_chains[k] = chain
 
     url_counter = 1
     input_counter = 1
@@ -284,7 +287,7 @@ def extract_and_convert(input_file: str, output_file: str, params_file: str) -> 
                 key, input_counter = allocate_key(
                     semantic, "INPUT", input_counter, used_input_keys
                 )
-                add_key(key, fill_val)
+                add_key(key, fill_val, chain)
                 return f'{chain}.{meth}(params["{key}"])'
 
             return FILL_TYPE_PATTERN.sub(repl, text)
@@ -293,7 +296,7 @@ def extract_and_convert(input_file: str, output_file: str, params_file: str) -> 
 
     rich_params: Dict[str, Any] = {}
     for k in ordered_keys:
-        meta = infer_param_metadata(k)
+        meta = infer_param_metadata(k, chain=key_chains.get(k))
         meta["value"] = key_values.get(k, "")
         rich_params[k] = meta
 

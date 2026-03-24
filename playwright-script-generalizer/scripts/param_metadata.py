@@ -4,7 +4,7 @@
 规则说明：
 - URL / 断言 URL：仅标记 kind（url / assert_url），**不**标为 sensitive（多数页面地址视为非密级）。
 - 邮箱、手机、工号、用户名、账号等 **不** 自动标为敏感。
-- 仅当键名暗示 **密码、令牌、密钥、凭证** 等安全相关语义时 sensitive=true。
+- 键名暗示 **密码、令牌、密钥、凭证** 等安全相关语义时 sensitive=true；**或** fill 的定位链中含 HTML/CSS 的 ``type=password``（含 ``input[type="password"]`` 等）时亦标敏感（避免内层引号导致键名被截成 ``INPUT_INPUT_TYPE`` 而漏标）。
 - 提取脚本会把原文写入各参数的 value；**参数 JSON 根即为参数字典**（与旧版 ``parameters`` 内层同形）。若仍存在顶层 ``parameters`` 键（历史文件），解包时自动取内层。
 """
 
@@ -37,6 +37,23 @@ _RE_SECRET = re.compile(
 )
 
 
+def chain_indicates_password_input(chain: str) -> bool:
+    """
+    从 Playwright 定位链（page.xxx 片段）判断是否指向 type=password 的输入框。
+    录制脚本里常见 ``input[type="password"]`` 或转义后的 ``\\\"password\\\"``；
+    仅靠键名推断会漏掉因引号截断而得到的 ``INPUT_INPUT_TYPE`` 等键。
+    """
+    if not chain:
+        return False
+    # 将 Python 源里常见的 \\\" 还原为 "，便于匹配 type="password"
+    norm = chain.replace('\\"', '"').replace("\\'", "'")
+    if re.search(r'(?i)type\s*=\s*["\']password["\']', norm):
+        return True
+    if re.search(r"(?i)type\s*=\s*password\b", norm):
+        return True
+    return False
+
+
 def unwrap_parameters_root(raw: Any) -> Dict[str, Any]:
     """
     默认根对象即参数字典 ``{"KEY": {"value", "sensitive", "kind"}}``。
@@ -47,9 +64,9 @@ def unwrap_parameters_root(raw: Any) -> Dict[str, Any]:
     return raw if isinstance(raw, dict) else {}
 
 
-def infer_param_metadata(key: str) -> Dict[str, Any]:
+def infer_param_metadata(key: str, *, chain: Optional[str] = None) -> Dict[str, Any]:
     """
-    根据参数键名推断 kind、sensitive（value 由调用方填入）。
+    根据参数键名与可选的定位链推断 kind、sensitive（value 由调用方填入）。
     """
     entry: Dict[str, Any] = {"value": "", "sensitive": False, "kind": "input"}
 
@@ -61,7 +78,7 @@ def infer_param_metadata(key: str) -> Dict[str, Any]:
         entry["kind"] = "assert_url"
         return entry
 
-    if _RE_SECRET.search(key):
+    if _RE_SECRET.search(key) or chain_indicates_password_input(chain or ""):
         entry["sensitive"] = True
 
     return entry
