@@ -12,7 +12,7 @@ description: >-
 
 本技能覆盖 Playwright 录制脚本的双向流程：
 
-1. **阶段一（泛化 / 提取）**：将写死具体值的脚本转为带 `params["键"]` 的模板；**模板与参数 JSON 放在同一目录**（推荐 `-d out/<子目录>`）。**参数 JSON 根即为参数字典**：`{"KEY": {"value": "...", "sensitive": bool, "kind": "..."}, ...}`，不含 `schema_version`、`source_script`、也不再用顶层 `parameters` 包裹（历史文件若仍含 `parameters` 键，还原时会自动解包）。**键名**从定位方式推断（placeholder / role name / label / locator 等，略）。
+1. **阶段一（泛化 / 提取）**：将写死具体值的脚本转为带 `params["键"]` 的模板；**模板与参数 JSON 放在同一目录**（推荐 `-d out/<子目录>`）。**参数 JSON 根即为参数字典**：`{"KEY": {"value": "...", "sensitive": bool, "kind": "..."}, ...}`，其中 **原文值完整写入 `-p` 参数 JSON**；**模板 `.py` 内嵌的回退 JSON 中，凡 `sensitive: true` 的键 `value` 一律置空**，避免仅把脚本入库时仍带密码等明文。不含 `schema_version`、`source_script`、也不再用顶层 `parameters` 包裹（历史文件若仍含 `parameters` 键，还原时会自动解包）。**键名**从定位方式推断（placeholder / role name / label / locator 等，略）。
 2. **阶段二（还原 / 实例化）**：读取模板与参数 JSON，将 `params["键"]` 替换为字面量。默认写入 **`out/restored/`**（可用 `-d` 改）；**输出文件名**：若参数 JSON 为旧版且含 `source_script` 则沿用；否则模板名为 `converted_xxx.py` 时推断为 `xxx.py`，否则与模板 basename 相同。也可用 **`-o 完整路径.py`** 指定输出。兼容旧式含 `parameters` 包裹或扁平字符串值。
 
 ## 工作流程
@@ -32,7 +32,7 @@ description: >-
    - **同名文件**：若目标路径已存在，会先将旧文件复制到 **`out.bak/`**（如 `out.bak/out/sample_extract/原名.bak.时间戳.ext`），再写入新内容。
    - 若不使用 `-d`，仍可用 `-o`/`-p` 传**完整路径**（行为与以前一致）；若目标路径的父目录不存在，也会自动创建。
 
-2. **向用户说明**：参数文件默认带 **原脚本提取出的原文**（各键的 `value`），并带 `sensitive` / `kind`（由 `param_metadata.py` 判定：**URL 不标敏感**；邮箱/账号/用户名等**不**自动标敏感；键名暗示密码、令牌、密钥、凭证等**安全相关**，或定位链中含 **`type=password` 输入框**（如 `input[type="password"]`）时为 `sensitive: true`，可手工改）。模板通过 `_params_flat_from_json` 读 `value`。
+2. **向用户说明**：**参数 JSON** 默认带 **原脚本提取出的原文**（各键的 `value`），并带 `sensitive` / `kind`（由 `param_metadata.py` 判定：**URL 不标敏感**；邮箱/账号/用户名等**不**自动标敏感；键名暗示密码、令牌、密钥、凭证等**安全相关**，或定位链中含 **`type=password` 输入框**（如 `input[type="password"]`）时为 `sensitive: true`，可手工改）。**模板**在缺少 `PARAMS_FILE` 时的内嵌分支：**敏感键不落真实 `value`**，仅非敏感项保留内嵌默认值；生产运行应提供参数文件或等价方式注入敏感值。模板通过 `_params_flat_from_json` 读 `value`。
 
 ### 阶段二：还原（用新参数生成可执行脚本）
 

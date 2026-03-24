@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import os
 import re
@@ -108,6 +109,18 @@ def allocate_key(
     key = f"{candidate}_{n}"
     used.add(key)
     return key, counter
+
+
+def _rich_params_for_template_embed(rich_params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    写入模板内联 json.loads(...) 的载荷：与 rich_params 结构相同，但 sensitive=true 的 value 置空，
+    避免模板单独入库或分享时携带密码等明文；完整值仍只写入 -p 参数 JSON。
+    """
+    out = copy.deepcopy(rich_params)
+    for v in out.values():
+        if isinstance(v, dict) and v.get("sensitive") is True:
+            v["value"] = ""
+    return out
 
 
 def _generated_header_loader() -> str:
@@ -327,8 +340,11 @@ def extract_and_convert(input_file: str, output_file: str, params_file: str) -> 
         f.write("        _raw = json.load(f)\n")
         f.write("    params = _params_flat_from_json(_raw)\n")
         f.write("else:\n")
-        f.write("    # 与 params 文件同结构：仅各参数键（value / sensitive / kind），无版本与文件名\n")
-        _embedded = json.dumps(rich_params, ensure_ascii=False)
+        f.write(
+            "    # 与 params 同结构；sensitive=true 的 value 在此为空（防入库泄露），"
+            "运行需依赖 PARAMS_FILE 或自行注入\n"
+        )
+        _embedded = json.dumps(_rich_params_for_template_embed(rich_params), ensure_ascii=False)
         f.write(f"    _raw = json.loads({repr(_embedded)})\n")
         f.write("    params = _params_flat_from_json(_raw)\n")
         f.write("# ==============================\n\n")
