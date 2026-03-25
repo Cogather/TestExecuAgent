@@ -102,8 +102,9 @@ def main() -> int:
 
     run_env = os.environ.copy()
     run_env.update(parse_env_pairs(args.env))
-    run_env.setdefault("STEP_CAPTURE_DIR", str(step_dir / "reports" / "checkpoints"))
-    (step_dir / "reports" / "checkpoints").mkdir(parents=True, exist_ok=True)
+    # Keep checkpoint artifacts directly under ./<case_id>/step_<N>/.
+    run_env.setdefault("STEP_CAPTURE_DIR", str(step_dir))
+    step_dir.mkdir(parents=True, exist_ok=True)
 
     exit_code = 1
     timed_out = False

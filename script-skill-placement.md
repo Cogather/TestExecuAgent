@@ -4,7 +4,7 @@
 
 说明：
 
-- 这里只记录“归属关系”，不移动文件，不改脚本名，不新增脚本实现。
+- 这里优先记录“归属关系”；如流程职责调整，允许在对应 skill 下新增同实现脚本副本以保证调用路径清晰。
 - `record-playwright-script` 仅保留为兼容入口，不再承担具体脚本归属。
 - 归属判断以“单个 skill 只负责一类职责”为原则，优先保持现有脚本调用方式不变。
 
@@ -44,22 +44,24 @@
 
 | 脚本文件 | 应归属的 skill | 说明 |
 | --- | --- | --- |
-| `result-finalizer/scripts/extract_playwright_params.py` | `result-finalizer` | 将 Playwright 脚本提取为模板与默认参数。 |
-| `result-finalizer/scripts/restore_playwright_script.py` | `result-finalizer` | 将模板和参数还原为可执行脚本。 |
+| `result-finalizer/scripts/extract_playwright_params.py` | `result-finalizer` | 收尾阶段执行参数泛化（提取参数并生成模板/默认参数）；输入路径统一为 `./<case_id>/<case_id>_step<N>.py`。 |
+| `record-scripts/scripts/restore_playwright_script.py` | `record-scripts` | 录制阶段第一步只对“已下载到复用资产”的步骤执行参数还原，生成可执行步骤脚本。 |
+| `record-scripts/scripts/param_metadata.py` | `record-scripts` | 还原脚本依赖的参数结构解析与兼容处理。 |
+| `playwright-script-generalizer/scripts/*` | `playwright-script-generalizer` | 通用能力保留，用于独立调用或能力同步，不改变主流程职责分配。 |
 
 ## 六、当前建议的 skill 边界
 
 | skill | 负责的脚本类别 |
 | --- | --- |
 | `record-case-generator` | 用例拆解、预期结果扩写、预期结果入库相关脚本 |
-| `record-step-recorder` | 相似步骤检索、步骤录制、脚本落盘相关脚本 |
+| `record-step-recorder` | 相似步骤检索、按复用资产可得性执行参数还原、步骤录制、脚本落盘 |
 | `fix-playwright-repairer` | 步骤上下文补齐、脚本修复、MCP 验证、断言补充、静态优化相关脚本 |
 | `fix-playwright-output-manager` | 脚本执行、输出收集、报告生成、目录上传相关脚本 |
 | `fix-playwright-ops` | 环境锁定/释放、修复结果上报相关脚本 |
 | `fix-playwright-scripts` | 仅作为历史兼容入口，不承载新脚本归属 |
 | `bootstrap` | Python 解释器发现、根目录创建等上层编排动作 |
 | `web-test-validator` | 验证判定、状态上报、结果回传相关脚本 |
-| `playwright-script-generalizer` | Playwright 脚本参数提取与还原相关脚本 |
+| `playwright-script-generalizer` | Playwright 脚本参数提取与还原的通用实现与独立调用入口 |
 | `record-playwright-script` | 仅作为历史兼容入口，不承载新脚本归属 |
 
 ## 七、使用原则

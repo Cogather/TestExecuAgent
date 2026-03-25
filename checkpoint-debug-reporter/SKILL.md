@@ -22,12 +22,13 @@ description: 解析并诊断 `fix-scripts` 产出的步骤执行结果，按“�
      - `stdout.log` / `stderr.log`
      - `execution.json`
      - `downloads/` 下文件（存在性、文件名、文件内容）
-     - `reports/checkpoints/*`（截图、HTML 快照等）
+     - `step_<N>/*.png|*.html`（截图、HTML 快照等）
    - 对每个检查点输出结论：`verified` / `failed` / `unverifiable`。
 4. 形成步骤状态（`PASS` / `WARN` / `FAIL`）并汇总总体状态。
 5. 输出测试报告：
    - `summary`：结构化文本（JSON 风格）结果，供编排系统消费。
    - `report`：可读 Markdown 报告，供人工排查和归档（含“检查点-证据”明细）。
+   - 报告默认输出：`./<case_id>/flow_validation_report.md`。
 
 ## Input Contract
 
@@ -41,7 +42,7 @@ description: 解析并诊断 `fix-scripts` 产出的步骤执行结果，按“�
 - `checkpoint_source`：检查点来源（如 `./<case_id>/<case_id>_AI_create.txt` 或上游传入结构化步骤）
 - `strict_checkpoint`：关键检查点无法验证或验证失败时直接判 `FAIL`（默认建议开启）
 - `--tail-lines`：日志尾部保留行数，默认 `20`
-- `report_output`：报告输出目标路径（可选）
+- `report_output`：报告输出目标路径（可选，默认 `./<case_id>/flow_validation_report.md`）
 
 ## Decision Rules
 
@@ -69,6 +70,10 @@ description: 解析并诊断 `fix-scripts` 产出的步骤执行结果，按“�
 
 - `summary`：总体状态、步骤明细、计数汇总、失败原因列表
 - `report`：面向人工的排查报告（含关键日志尾部与检查点证据明细）
+- 报告中每个步骤的每个检查点必须包含：
+  - 检查点文字描述
+  - 检查结论（`verified|failed|unverifiable`）
+  - 至少一张对应截图路径（`./<case_id>/step_<N>/cp*.png`）
 
 推荐报告结构：
 

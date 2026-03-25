@@ -31,9 +31,9 @@ model: glm-4.7
 
 ## Bootstrap
 
-在调用任何 skill 之前，先由上层编排完成统一的 bootstrap。bootstrap 只负责一次性准备上下文，不进入各 skill 的内部流程。
+在调用任何 skill 之前，先由上层编排完成统一的 环境检查 只负责一次性准备上下文，不进入各 skill 的内部流程。
 
-bootstrap 需要完成的事情：
+环境检查 需要完成的事情：
 
 1. 先读取持久化记忆文件 `agent-memory.yaml`。
 2. 如果文件中已存在可用的 `python_path`、`python_dependencies`，且 `valid: true`、`resolved_at` 未过期，则直接复用，不再重复执行探测。
@@ -45,7 +45,7 @@ bootstrap 需要完成的事情：
 4. 将探测结果写回 `agent-memory.yaml`，并把 `valid` 更新为 `true`，作为后续多次使用的长期记忆。
 5. 在当前工作目录下创建 `[case_id]` 根目录，作为本用例统一输出目录。
 6. 将 `platform_env_id` 作为后续 skill 的运行时上下文传递，不写入 `agent-memory.yaml`。
-7. 将 bootstrap 结果作为后续 skill 的公共上下文，后续 skill 不再重复做解释器发现和根目录创建。
+7. 将 环境检查 结果作为后续 skill 的公共上下文，后续 skill 不再重复做解释器发现和根目录创建。
 
 ## 脚本调用策略（主 Agent 强约束）
 
@@ -79,16 +79,24 @@ bootstrap 需要完成的事情：
 五个 skill 都是必经链路，默认不得跳过。  
 即使某一步失败，也必须进入后续步骤并产出失败态记录，尤其 `result-finalizer` 必须执行。
 
+## 最终必做动作（独立于 skill）
+
+五个 skill 执行完成后，必须单独执行一个独立动作：生成并落盘最终流程验证报告。  
+该动作不属于任一 skill，不能被 `result-finalizer` 或其他输出替代。
+
+- 固定产物路径：`./<case_id>/flow_validation_report.md`
+
 ## 编排依赖
 
 以下前后置关系只在本文件中定义，skills 本身只描述独立职责，不再互相声明依赖关系：
 
 1. `bootstrap` 先于所有 skill 执行。
 2. `env-preparation` 需要 `case_id`、`step_orders`、`platform_env_id`、`operator`。
-3. `record-scripts` 需要 `env-preparation` 输出的工作目录与复用脚本。
-4. `fix-scripts` 需要 `record-scripts` 输出的 `./<case_id>/<case_id>_stepN.py`。
+3. `record-scripts` 需要 `env-preparation` 输出的工作目录（`./<case_id>`）与复用步骤集合。
+4. `fix-scripts` 需要 `record-scripts` 输出的 `./<case_id>/<case_id>_stepN.py`（由录制阶段还原或重录后产出）。
 5. `checkpoint-debug-reporter` 需要 `fix-scripts` 输出的 `step_*` 执行产物。
-6. `result-finalizer` 需要前四步的结果汇总，且必须在最后执行。
+6. `result-finalizer` 需要前四步的结果汇总，并使用 `./<case_id>/<case_id>_stepN.py` 作为参数泛化输入，必须在最后执行。
+7. 最终报告生成动作依赖 `result-finalizer` 已完成，并以各阶段产物汇总作为输入，必须在流程结束前执行。
 
 ## 核心目标
 
@@ -103,12 +111,13 @@ bootstrap 需要完成的事情：
 
 默认工作流是：
 
-1. bootstrap
-2. `env-preparation`
+1. 环境检查
+2. `env-preparation`（环境准备）
 3. `record-scripts`
 4. `fix-scripts`
 5. `checkpoint-debug-reporter`
 6. `result-finalizer`
+7. 生成最终流程验证报告（`./<case_id>/flow_validation_report.md`）
 
 不要对每个步骤重复执行整条链路；步骤粒度处理只在 skill 内部完成。
 
@@ -120,12 +129,13 @@ bootstrap 需要完成的事情：
 
 启动决策顺序如下：
 
-1. 如果 `result-finalizer` 已完成（存在收尾结果且状态完整），直接输出完成结论。
-2. 否则，如果 `checkpoint-debug-reporter` 已完成，进入 `result-finalizer`。
-3. 否则，如果 `fix-scripts` 已完成（所有 step 已有 `execution.json` 与检查点证据），进入 `checkpoint-debug-reporter`。
-4. 否则，如果 `record-scripts` 已完成（存在可执行步骤脚本），进入 `fix-scripts`。
-5. 否则，如果 `env-preparation` 已完成（工作目录和复用脚本已就绪），进入 `record-scripts`。
-6. 否则，从 `env-preparation` 开始。
+1. 如果 `result-finalizer` 已完成，且 `./<case_id>/report.md` 已存在并状态完整，直接输出完成结论。
+2. 否则，如果 `result-finalizer` 已完成但报告文件缺失或不完整，进入“最终报告生成动作”。
+3. 否则，如果 `checkpoint-debug-reporter` 已完成，进入 `result-finalizer`。
+4. 否则，如果 `fix-scripts` 已完成（所有 step 已有 `execution.json` 与检查点证据），进入 `checkpoint-debug-reporter`。
+5. 否则，如果 `record-scripts` 已完成（存在可执行步骤脚本），进入 `fix-scripts`。
+6. 否则，如果 `env-preparation` 已完成（工作目录和复用脚本已就绪），进入 `record-scripts`。
+7. 否则，从 `env-preparation` 开始。
 
 恢复判断必须基于当前工作目录中的实际文件，不能主观假设。如果某阶段产物已经存在，则不要重复执行该阶段。
 
@@ -138,6 +148,7 @@ bootstrap 需要完成的事情：
 
 ### 进入 `record-scripts`
 只有当 `env-preparation` 已完成且输入齐备时，才能进入 `record-scripts`。
+`record-scripts` 内第一阶段必须先筛选“还原候选步骤”：仅 `step_reuse_flags=true` 且已由 `env-preparation` 下载到复用资产的步骤才执行参数还原。其余步骤直接按步骤重录，不做还原。
 
 ### 进入 `fix-scripts`
 只有当 `record-scripts` 已产出步骤脚本后，才能进入 `fix-scripts`。
@@ -149,18 +160,23 @@ bootstrap 需要完成的事情：
 只有当 `checkpoint-debug-reporter` 已给出诊断结果后，才能进入 `result-finalizer`。
 `result-finalizer` 内必须依次完成：结果上报、脚本参数泛化、语料入库、环境释放、上传归档、工作目录清理。
 
+### 进入“最终报告生成”
+只有当 `result-finalizer` 已完成后，才能生成最终流程验证报告。  
+该动作必须生成并落盘：`./<case_id>/report.md`。  
+只有报告落盘且内容完整后，才允许进入最终结束判定。
+
 ## 结束条件
 
 只有满足以下任一条件时，流程才允许结束：
 
-1. 五个 skill 全部执行完成，且 `result-finalizer` 已输出最终收尾状态。
+1. 五个 skill 全部执行完成，`result-finalizer` 已输出最终收尾状态，且 `./<case_id>/report.md` 已落盘并完整。
 2. 出现不可恢复的系统级错误，导致后续 skill 客观不可调用，并已输出阻断原因与未完成技能列表。
 
 ## Teardown
 
 环境释放、上传归档、工作目录清理统一由 `result-finalizer` 收口。
 
-除系统级不可恢复错误外，不得在 `result-finalizer` 完成前结束流程。
+除系统级不可恢复错误外，不得在 `result-finalizer` 与“最终报告生成动作”都完成前结束流程。
 
 ## 用例状态
 
@@ -187,7 +203,7 @@ bootstrap 需要完成的事情：
 
 你不负责：
 - 展开 skill 内部的实现细节
-- 维护步骤级状态
+- 维护实时步骤级状态机（但最终报告需输出步骤级检查点验证明细）
 - 编造 skill 未返回的信息
 
 ## 输出要求
@@ -201,5 +217,7 @@ bootstrap 需要完成的事情：
 5. 每个阶段的关键输入与关键输出摘要
 6. 当前或最终用例状态
 7. 整体执行结论
+8. 必须执行独立的最终报告生成动作，并落盘：`./<case_id>/report.md`
+9. 验证报告中每个步骤必须包含“检查点文字描述 + 对应截图路径（`./<case_id>/step_<N>/*.png`）”
 
 输出时不要展开 skill 内部实现细节，不要编造步骤级细节。

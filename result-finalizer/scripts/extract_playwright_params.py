@@ -1,4 +1,5 @@
 import argparse
+import copy
 import json
 import os
 import re
@@ -13,6 +14,7 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 
 from param_metadata import infer_param_metadata
+from script_to_json_string import file_to_json_string_literal
 
 # Playwright ARIA role：仅出现 role、没有 name= 时，不宜单独用作业务键名
 GENERIC_ROLES = frozenset({
@@ -110,6 +112,18 @@ def allocate_key(
     return key, counter
 
 
+def _rich_params_for_template_embed(rich_params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    写入模板内联 json.loads(...) 的载荷：与 rich_params 结构相同，但 sensitive=true 的 value 置空，
+    避免模板单独入库或分享时携带密码等明文；完整值仍只写入 -p 参数 JSON。
+    """
+    out = copy.deepcopy(rich_params)
+    for v in out.values():
+        if isinstance(v, dict) and v.get("sensitive") is True:
+            v["value"] = ""
+    return out
+
+
 def _generated_header_loader() -> str:
     """写入模板文件顶部的、无外部依赖的参数解析逻辑。"""
     return '''
@@ -128,6 +142,59 @@ def _params_flat_from_json(raw):
             params[k] = str(v)
     return params
 '''.lstrip("\n")
+
+
+def _backup_nonempty_dir_to_timestamped_subdir(
+    dir_path: str,
+    backup_root: str,
+    archive_basename: str,
+) -> None:
+    """
+    若 dir_path 为目录且内含条目，则将其下**所有项**整体迁入
+    backup_root / f"{archive_basename}.{时间戳}[.n]" / 下（不删 dir_path 本身）。
+    """
+    if not os.path.isdir(dir_path):
+        return
+    names = os.listdir(dir_path)
+    if not names:
+        return
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+    dest = os.path.join(backup_root, f"{archive_basename}.{stamp}")
+    n = 0
+    while os.path.exists(dest):
+        n += 1
+        dest = os.path.join(backup_root, f"{archive_basename}.{stamp}.{n}")
+    os.makedirs(dest, exist_ok=True)
+    for name in names:
+        shutil.move(os.path.join(dir_path, name), os.path.join(dest, name))
+    print(f"已备份目录 {dir_path} 内文件至: {dest}")
+
+
+def _emit_json_value_artifacts(
+    template_path: str,
+    params_path: str,
+    input_abs: str,
+    skip: bool,
+) -> None:
+    """与输入脚本同级：<stem>_json/ 下写入 script.jsonvalue.txt、params.jsonvalue.txt。"""
+    if skip:
+        return
+    parent = os.path.dirname(input_abs)
+    stem = os.path.splitext(os.path.basename(input_abs))[0]
+    json_dir = os.path.join(parent, f"{stem}_json")
+    json_bak_root = os.path.join(parent, f"{stem}_json_bak")
+    _backup_nonempty_dir_to_timestamped_subdir(json_dir, json_bak_root, f"{stem}_json")
+    os.makedirs(json_dir, exist_ok=True)
+    tpl_lit = file_to_json_string_literal(template_path)
+    par_lit = file_to_json_string_literal(params_path)
+    script_out = os.path.join(json_dir, "script.jsonvalue.txt")
+    params_out = os.path.join(json_dir, "params.jsonvalue.txt")
+    with open(script_out, "w", encoding="utf-8") as f:
+        f.write(tpl_lit)
+    with open(params_out, "w", encoding="utf-8") as f:
+        f.write(par_lit)
+    print(f"已写入 JSON 字符串片段: {script_out}")
+    print(f"已写入 JSON 字符串片段: {params_out}")
 
 
 def backup_if_exists(path: str) -> Optional[str]:
@@ -200,10 +267,19 @@ def relocate_extraneous_output_files(output_file: str, params_file: str) -> None
             print(f"已迁出输出目录至 out.bak: {src} -> {dest}")
 
 
-def extract_and_convert(input_file: str, output_file: str, params_file: str) -> None:
+def extract_and_convert(
+    input_file: str,
+    output_file: str,
+    params_file: str,
+    *,
+    sibling_product_layout: bool = False,
+    skip_json_artifacts: bool = False,
+) -> None:
     if not os.path.exists(input_file):
         print(f"❌ 错误: 找不到输入文件 {input_file}")
         return
+
+    input_abs = os.path.abspath(input_file)
 
     with open(input_file, "r", encoding="utf-8") as f:
         lines = f.readlines()
@@ -211,12 +287,15 @@ def extract_and_convert(input_file: str, output_file: str, params_file: str) -> 
     ordered_keys: List[str] = []
     key_set: Set[str] = set()
     key_values: Dict[str, str] = {}
+    key_chains: Dict[str, str] = {}
 
-    def add_key(k: str, raw_value: str) -> None:
+    def add_key(k: str, raw_value: str, chain: Optional[str] = None) -> None:
         if k not in key_set:
             key_set.add(k)
             ordered_keys.append(k)
             key_values[k] = raw_value
+            if chain is not None:
+                key_chains[k] = chain
 
     url_counter = 1
     input_counter = 1
@@ -284,7 +363,7 @@ def extract_and_convert(input_file: str, output_file: str, params_file: str) -> 
                 key, input_counter = allocate_key(
                     semantic, "INPUT", input_counter, used_input_keys
                 )
-                add_key(key, fill_val)
+                add_key(key, fill_val, chain)
                 return f'{chain}.{meth}(params["{key}"])'
 
             return FILL_TYPE_PATTERN.sub(repl, text)
@@ -293,12 +372,18 @@ def extract_and_convert(input_file: str, output_file: str, params_file: str) -> 
 
     rich_params: Dict[str, Any] = {}
     for k in ordered_keys:
-        meta = infer_param_metadata(k)
+        meta = infer_param_metadata(k, chain=key_chains.get(k))
         meta["value"] = key_values.get(k, "")
         rich_params[k] = meta
 
     # 参数 JSON 仅写入「parameters 内部」的对象：无 schema_version / source_script 等顶层元数据
     out_dir = os.path.dirname(os.path.abspath(output_file))
+    if sibling_product_layout:
+        stem = os.path.splitext(os.path.basename(input_abs))[0]
+        parent = os.path.dirname(input_abs)
+        product_dir = os.path.join(parent, stem)
+        bak_root = os.path.join(parent, f"{stem}_bak")
+        _backup_nonempty_dir_to_timestamped_subdir(product_dir, bak_root, stem)
     if out_dir and not os.path.isdir(out_dir):
         os.makedirs(out_dir, exist_ok=True)
 
@@ -324,8 +409,11 @@ def extract_and_convert(input_file: str, output_file: str, params_file: str) -> 
         f.write("        _raw = json.load(f)\n")
         f.write("    params = _params_flat_from_json(_raw)\n")
         f.write("else:\n")
-        f.write("    # 与 params 文件同结构：仅各参数键（value / sensitive / kind），无版本与文件名\n")
-        _embedded = json.dumps(rich_params, ensure_ascii=False)
+        f.write(
+            "    # 与 params 同结构；sensitive=true 的 value 在此为空（防入库泄露），"
+            "运行需依赖 PARAMS_FILE 或自行注入\n"
+        )
+        _embedded = json.dumps(_rich_params_for_template_embed(rich_params), ensure_ascii=False)
         f.write(f"    _raw = json.loads({repr(_embedded)})\n")
         f.write("    params = _params_flat_from_json(_raw)\n")
         f.write("# ==============================\n\n")
@@ -335,6 +423,8 @@ def extract_and_convert(input_file: str, output_file: str, params_file: str) -> 
 
     with open(params_file, "w", encoding="utf-8") as f:
         json.dump(rich_params, f, indent=4, ensure_ascii=False)
+
+    _emit_json_value_artifacts(output_file, params_file, input_abs, skip_json_artifacts)
 
     print("脚本参数提取与转换成功！")
     print(f"提取的参数键数量: {len(ordered_keys)}（JSON 仅为参数字典：各键 value / sensitive / kind）")
@@ -347,11 +437,14 @@ if __name__ == "__main__":
         description="Playwright 脚本参数提取与转换工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
+默认（不写 -d）：与输入脚本同级创建 <脚本主名>/ ，写入 converted_<主名>.py 与 params_<主名>.json；
+若该目录已有文件，先迁入 <主名>_bak/<主名>.时间戳/ 。并生成 <主名>_json/ 下的 JSON 字符串片段（已有则备份到 <主名>_json_bak/）。
+
+显式 -d：仍使用原「输出目录 + 文件名」行为，多余文件迁 out.bak/；仍会生成与输入同级 <主名>_json/（除非 --skip-json-artifacts）。
+
 示例:
-  指定输出目录（推荐）：目录不存在会自动创建；若已有同名文件则先备份到 out.bak/ 再写入。
-  python extract_playwright_params.py -i src/login.py -d out/extract_login \\
-      -o template.py -p params.json
-  等价于 -o out/extract_login/template.py -p out/extract_login/params.json
+  python extract_playwright_params.py -i src/login.py
+  python extract_playwright_params.py -i src/login.py -d out/extract_login -o template.py -p params.json
         """.strip(),
     )
     parser.add_argument("-i", "--input", required=True, help="输入的 Playwright 录制脚本路径 (.py)")
@@ -359,30 +452,52 @@ if __name__ == "__main__":
         "-d",
         "--out-dir",
         default=None,
-        help="输出目录：若指定则先创建目录；-o/-p 仅写文件名时放在该目录下（与直接写完整路径二选一）",
+        help="指定后：产物写入该目录；-o/-p 仅取文件名放入该目录（与默认「脚本同级 <主名>/」二选一）",
     )
     parser.add_argument(
         "-o",
         "--output",
-        default="converted_script.py",
-        help="转换后的模板脚本文件名或路径（默认 converted_script.py）",
+        default=None,
+        help="模板文件名；默认不写 -d 时为 converted_<主名>.py，写 -d 时为 converted_script.py",
     )
     parser.add_argument(
         "-p",
         "--params",
-        default="params.json",
-        help="参数 JSON 文件名或路径（默认 params.json）",
+        default=None,
+        help="参数 JSON 文件名；默认不写 -d 时为 params_<主名>.json，写 -d 时为 params.json",
+    )
+    parser.add_argument(
+        "--skip-json-artifacts",
+        action="store_true",
+        help="不生成 <主名>_json/ 下的 script.jsonvalue.txt / params.jsonvalue.txt",
     )
 
     args = parser.parse_args()
 
+    inp_abs = os.path.abspath(args.input)
+    parent = os.path.dirname(inp_abs)
+    stem = os.path.splitext(os.path.basename(inp_abs))[0]
+
     if args.out_dir:
         out_dir = os.path.abspath(args.out_dir)
         os.makedirs(out_dir, exist_ok=True)
-        output_path = os.path.join(out_dir, os.path.basename(args.output))
-        params_path = os.path.join(out_dir, os.path.basename(args.params))
+        obn = os.path.basename(args.output or "converted_script.py")
+        pbn = os.path.basename(args.params or "params.json")
+        output_path = os.path.join(out_dir, obn)
+        params_path = os.path.join(out_dir, pbn)
+        sibling_layout = False
     else:
-        output_path = os.path.abspath(args.output)
-        params_path = os.path.abspath(args.params)
+        product_dir = os.path.join(parent, stem)
+        obn = os.path.basename(args.output or f"converted_{stem}.py")
+        pbn = os.path.basename(args.params or f"params_{stem}.json")
+        output_path = os.path.join(product_dir, obn)
+        params_path = os.path.join(product_dir, pbn)
+        sibling_layout = True
 
-    extract_and_convert(args.input, output_path, params_path)
+    extract_and_convert(
+        args.input,
+        output_path,
+        params_path,
+        sibling_product_layout=sibling_layout,
+        skip_json_artifacts=args.skip_json_artifacts,
+    )

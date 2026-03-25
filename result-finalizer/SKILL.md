@@ -5,7 +5,7 @@ description: 在测试执行或结果判定完成后，按固定收尾顺序完�
 
 # Result Finalizer
 
-这个 skill 只负责收尾，不负责录制、修复或再次执行步骤脚本。  
+这个 skill 只负责收尾，不负责录制、参数还原、修复或再次执行步骤脚本。  
 必须按固定顺序处理六件事：`结果上报 -> 脚本参数泛化 -> 语料入库 -> 环境释放 -> 上传归档 -> 工作目录清理`。
 
 ## Use When
@@ -76,7 +76,7 @@ python .skills/result-finalizer/scripts/post_cida_result.py \
 ### Step 2: 脚本参数泛化（提取参数）
 
 在语料入库前，先对每个修复后的步骤脚本执行参数泛化。  
-统一使用 `playwright-script-generalizer` 的阶段一提取脚本，不自行实现泛化逻辑。
+统一使用 `result-finalizer/scripts/extract_playwright_params.py`，不自行实现泛化逻辑。
 
 命令模板（推荐使用独立输出目录）：
 
@@ -88,17 +88,28 @@ python result-finalizer/scripts/extract_playwright_params.py \
   -p "<case_id>_step<N>.default_params.json"
 ```
 
+默认模式（不写 `-d`）：
+
+```bash
+python result-finalizer/scripts/extract_playwright_params.py \
+  -i "./<case_id>/<case_id>_step<N>.py"
+```
+
 执行要求：
 
 - 每个待入库步骤都必须先完成一次参数泛化。
+- 泛化输入脚本目录与复用脚本下载目录保持一致：统一读取 `./<case_id>/<case_id>_step<N>.py`。
 - 泛化失败的步骤不得进入语料入库，需记录失败原因并在最终报告中标注。
 - 记录泛化结果：`generalize_status = success|failed|partial`。
 - `-d/--out-dir` 不存在时自动创建；在 `-d` 模式下，`-o/-p` 只写文件名。
+- 默认不写 `-d` 时：与输入脚本同级创建 `<脚本主名>/`，输出 `converted_<主名>.py` 与 `params_<主名>.json`；若目录已有文件，先备份到 `<主名>_bak/<主名>.<时间戳>/`。
 - `-d` 模式会保持目录“本次双文件”整洁：除本次 `-o/-p` 目标外，其他同级文件会在写入前迁移到 `out.bak/` 的同相对路径下（子目录不处理）。
 - 若目标同名文件已存在，会先复制备份到 `out.bak/.../<原名>.bak.<时间戳>.<ext>`，再写入新文件。
+- 提取完成后默认生成输入脚本同级 `<主名>_json/`：`script.jsonvalue.txt`、`params.jsonvalue.txt`；已有内容先备份到 `<主名>_json_bak/`。可用 `--skip-json-artifacts` 跳过该产物。
 - 参数 JSON 使用元数据结构：`{key: {value, sensitive, kind}}`。
-- 元数据规则：URL 永不自动标敏感；邮箱/账号/用户名默认不自动标敏感；仅键名命中密码/令牌/密钥/凭证等安全提示词时自动 `sensitive: true`。
+- 元数据规则：URL 永不自动标敏感；邮箱/账号/用户名默认不自动标敏感；键名命中密码/令牌/密钥/凭证等安全提示词，或定位链命中 `type=password` 时自动 `sensitive: true`。
 - 模板脚本通过 `_params_flat_from_json` 读取每个键的 `value` 字段。
+- 模板内联回退参数会将 `sensitive=true` 的 `value` 置空，避免敏感信息随模板泄露；完整值仍以参数 JSON 为准。
 
 ### Step 3: 语料入库（使用 `store_steps.py` 上报）
 
@@ -210,6 +221,7 @@ python upload.py ./<case_id>
 ## Constraints
 
 - 不要重跑步骤脚本，不要修改步骤代码。
+- 不要在收尾阶段执行参数还原；还原应在 `record-scripts` 第一阶段完成。
 - 不要在环境未释放前做激进清理。
 - 不要因为上游失败跳过环境释放。
 - 不要跳过参数泛化直接入库原始硬编码脚本。

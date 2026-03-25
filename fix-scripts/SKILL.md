@@ -24,8 +24,8 @@ description: 修复 Playwright 步骤脚本并输出可调试证据。用于先�
 - `stdout.log`
 - `stderr.log`
 - `execution.json`（退出码、耗时、错误摘要）
-- `reports/checkpoints/*.png`（关键节点截图）
-- `reports/checkpoints/*.html`（关键节点 DOM 快照）
+- `cp*.png`（关键节点截图）
+- `cp*.html`（关键节点 DOM 快照）
 
 ## 工作流程
 
@@ -59,7 +59,7 @@ python fix-scripts/scripts/run_step_with_capture.py \
 推荐写法：
 
 ```python
-checkpoint_dir = "./<case_id>/step_<N>/reports/checkpoints"
+checkpoint_dir = "./<case_id>/step_<N>"
 os.makedirs(checkpoint_dir, exist_ok=True)
 page.screenshot(path=f"{checkpoint_dir}/cp2_after_key_action.png", full_page=True)
 with open(f"{checkpoint_dir}/cp2_after_key_action.html", "w", encoding="utf-8") as f:
@@ -80,7 +80,7 @@ with open(f"{checkpoint_dir}/cp2_after_key_action.html", "w", encoding="utf-8") 
 
 1. 使用 `run_step_with_capture.py` 执行步骤脚本。
 2. 读取 `stdout.log`、`stderr.log`、`execution.json`。
-3. 检查 `./<case_id>/step_<N>/reports/checkpoints`：
+3. 检查 `./<case_id>/step_<N>/`：
    - 至少存在 `cp1` 与 `cp2` 的 `.png` 留证（异常时允许出现 `cp3`）。
    - `.png` 留证总数不得超过 3，`.html` 留证总数不得超过 3。
 
@@ -125,7 +125,7 @@ with open(f"{checkpoint_dir}/cp2_after_key_action.html", "w", encoding="utf-8") 
 - MCP 关键动作验证通过
 - 包装执行退出码为 `0`
 - 关键断言通过
-- 留证文件存在且可读（位于 `./<case_id>/step_<N>/reports/checkpoints`）
+- 留证文件存在且可读（位于 `./<case_id>/step_<N>/`）
 - 每步留证点不超过 3 个（`cp1`、`cp2`、`cp3`）
 - 当前步骤已验证可用后，才能进入下一步骤
 

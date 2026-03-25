@@ -48,7 +48,8 @@ python get_reuse_scripts.py --case_id <case_id> --step <step_orders> --output ./
 通过条件：
 
 - 退出码为 `0`。
-- 输出目录 `./<case_id>` 中生成了复用步骤脚本
+- 输出目录 `./<case_id>` 中生成了复用步骤脚本。
+- 复用脚本落盘路径需遵循统一约定：`./<case_id>/<case_id>_step<N>.py`（仅 `step_reuse_flags=true` 的步骤）。
 
 如果失败，立即停止并返回错误，不进入第三步。
 
@@ -79,6 +80,7 @@ python .opencode/skills/fix-playwright-scripts/scripts/env_manager.py \
 
 - `workspace_dir`
 - `reuse_scripts_output`（默认 `./<case_id>`）
+- `reusable_step_orders`（成功下载到复用脚本的步骤序号集合）
 - `environment_lock_status`（`locked` 或 `failed`）
 - `details`（错误信息或关键日志）
 
