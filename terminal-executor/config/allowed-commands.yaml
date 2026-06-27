@@ -1,0 +1,93 @@
+# 命令白名单配置
+# 仅列出的命令允许通过 terminal-executor 执行
+
+local:
+  # 基本工具
+  - python
+  - python3
+  - pytest
+  - pip
+  - node
+  - npm
+  - npx
+  # 文件操作
+  - ls
+  - cat
+  - head
+  - tail
+  - grep
+  - find
+  - mkdir
+  - cp
+  - mv
+  - rm      # 注意：危险参数在 dangerous-commands.yaml 中拦截
+  - touch
+  # 系统信息
+  - echo
+  - env
+  - pwd
+  - which
+  - uname
+  - df
+  - du
+  - ps
+  # 网络
+  - curl
+  - wget
+  - ping
+  - nc
+  - ssh     # 仅用于连通性预检查
+  # 文本处理
+  - awk
+  - sed
+  - jq
+  - sort
+  - wc
+  # 压缩
+  - tar
+  - gzip
+  - zip
+  - unzip
+  # 进程
+  - timeout
+  - kill
+
+ssh:
+  # 网元设备常用 CLI 命令前缀（白名单放行，具体命令靠黑名单拦截）
+  # MML 类命令通常以固定前缀开头
+  - mml
+  - show
+  - display
+  - dir
+  - ls
+  - cat
+  - more
+  - grep
+  - tail
+  - head
+  - uptime
+  - free
+  - df
+  - ps
+  - netstat
+  - ss
+  - ip
+  - ifconfig
+  - ping
+  - traceroute
+  - curl
+  - wget
+  - systemctl
+  - journalctl
+  - docker
+  - kubectl
+  - python
+  - python3
+  - bash
+  - sh
+  # 允许通过管道组合的命令（由 MCP Server 层控制安全性）
+  - echo
+  - awk
+  - sed
+  - sort
+  - uniq

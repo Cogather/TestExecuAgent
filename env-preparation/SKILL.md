@@ -21,6 +21,7 @@ description: 在用例执行前完成可运行环境准备。用于需要按固�
 
 - `lock_reason`：环境锁定原因，默认 `测试agent占用`。
 - `expect_unlock_time`：预期解锁时间。
+- `ssh_config`（`case_type` 为 `mml` / `hybrid` 时提供）：包含 `host`、`port`、`username`、`auth_method`。
 
 ## 执行流程
 
@@ -74,6 +75,21 @@ python .opencode/skills/fix-playwright-scripts/scripts/env_manager.py \
 锁定成功后，只保留运行时上下文，不把 `platform_env_id` 或 `locked` 写入 `agent-memory.yaml`。  
 若锁定失败，记录失败状态和错误信息，由上层编排决定是否继续。
 
+### 第四步（可选）：SSH 连通性预检
+
+若 `ssh_config` 已提供，在环境准备完成后执行 SSH 连通性验证：
+
+```bash
+ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o BatchMode=yes \
+  -p <ssh_config.port> <ssh_config.username>@<ssh_config.host> echo ok
+```
+
+通过条件：
+- 退出码为 `0`。
+- stdout 包含 `ok`。
+
+若预检失败，记录失败状态和错误信息，由上层编排决定是否继续。不要将 `ssh_config` 中的密码/密钥写入日志或 `agent-memory.yaml`。
+
 ## 输出契约
 
 返回精简汇总：
@@ -82,6 +98,7 @@ python .opencode/skills/fix-playwright-scripts/scripts/env_manager.py \
 - `reuse_scripts_output`（默认 `./<case_id>`）
 - `reusable_step_orders`（成功下载到复用脚本的步骤序号集合）
 - `environment_lock_status`（`locked` 或 `failed`）
+- `ssh_precheck_status`（若提供了 `ssh_config`：`reachable` 或 `failed`）
 - `details`（错误信息或关键日志）
 
 ## 脚本说明

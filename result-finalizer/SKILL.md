@@ -75,8 +75,8 @@ python .skills/result-finalizer/scripts/post_cida_result.py \
 
 ### Step 2: 脚本参数泛化（提取参数）
 
-在语料入库前，先对每个修复后的步骤脚本执行参数泛化。  
-统一使用 `result-finalizer/scripts/extract_playwright_params.py`，不自行实现泛化逻辑。
+在语料入库前，对 Playwright 步骤脚本执行参数泛化。  
+命令执行步骤（`terminal-executor` 产出的 `local`/`ssh` 类型步骤）**不执行** Playwright 脚本参数泛化，直接跳过进入下一步。Web 步骤统一使用 `result-finalizer/scripts/extract_playwright_params.py`，不自行实现泛化逻辑。
 
 命令模板（推荐使用独立输出目录）：
 
@@ -113,8 +113,8 @@ python result-finalizer/scripts/extract_playwright_params.py \
 
 ### Step 3: 语料入库（使用 `store_steps.py` 上报）
 
-语料入库统一采用“脚本上报”方式，不自定义新入库脚本。  
-当用户确认脚本修复无误后，对每个步骤执行一次上报。
+语料入库统一采用”脚本上报”方式，不自定义新入库脚本。  
+当用户确认脚本修复无误后，对每个步骤执行一次上报。命令执行步骤（来自 `terminal-executor`）需将 `execution.json` + `stdout.log` + `stderr.log` 一并上报，`tool_name` 传命令原文（脱敏后）。
 
 脚本上报流程：
 
@@ -151,6 +151,8 @@ python ./skills/result-finalizer/scripts/env_manager.py \
   --action unlock \
   --platform_env_id "PLATFORM_ENV_ID"
 ```
+
+若使用了 SSH 远程连接，在本步中确保 `ssh-remote` MCP Server 的连接已释放（由 MCP Server 管理连接生命周期，通常无需显式操作；若需手动释放，通过 MCP 工具执行 `exit` 命令）。
 
 要求：
 
@@ -222,12 +224,14 @@ python upload.py ./<case_id>
 
 - 不要重跑步骤脚本，不要修改步骤代码。
 - 不要在收尾阶段执行参数还原；还原应在 `record-scripts` 第一阶段完成。
+- 命令执行步骤（`terminal-executor` 产出）不执行 Playwright 脚本参数泛化。
 - 不要在环境未释放前做激进清理。
 - 不要因为上游失败跳过环境释放。
-- 不要跳过参数泛化直接入库原始硬编码脚本。
+- 不要跳过参数泛化直接入库原始硬编码脚本（仅针对 Playwright 步骤）。
 - 不要在上传归档前删除关键产物目录。
 - 产物未归档时，不要删除 `reports/` 等关键证据目录。
 - 不要自己写或改造 `store_steps.py`，只按现有脚本能力执行上报。
+- SSH 凭证（密码/密钥）不得出现在任何日志、报告或归档产物中。
 
 ## Integration
 

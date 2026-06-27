@@ -1,0 +1,47 @@
+# 危险命令黑名单
+# 命中任一模式即拒绝执行，标记为 blocked
+
+patterns:
+  # 系统破坏
+  - "rm -rf /"
+  - "rm -rf /*"
+  - "rm -rf ~"
+  - "rm -rf .*"
+  - "dd if="
+  - "mkfs"
+  - "mkswap"
+  # 关机/重启
+  - "shutdown"
+  - "reboot"
+  - "halt"
+  - "poweroff"
+  - "init 0"
+  - "init 6"
+  # 权限失控
+  - "chmod 777 /"
+  - "chmod -R 777 /"
+  - "chown -R"
+  # Fork bomb
+  - ":(){ :|:& };:"
+  # 设备写入
+  - "> /dev/sda"
+  - "> /dev/hda"
+  - "> /dev/xvd"
+  - "> /dev/nvme"
+  # 防火墙清空
+  - "iptables -F"
+  - "iptables -X"
+  - "iptables -P INPUT ACCEPT"
+  # 管道下执行远程脚本（代码注入风险）
+  - "curl.*|.*sh"
+  - "curl.*|.*bash"
+  - "wget.*|.*sh"
+  - "wget.*|.*bash"
+  - "curl.*|.*python"
+  - "wget.*|.*python"
+  # SSH 隧道/反向连接（跳板风险）
+  - "ssh -R"
+  - "ssh -L.*:.*:"
+  # 数据破坏
+  - ":>"
+  - "truncate -s 0"
